@@ -1,0 +1,23 @@
+# 构建与编译产物
+dist/
+build/
+*.exe
+*.spec
+__pycache__/
+*.py[cod]
+*$py.class
+
+# 本地运行期数据与潜在个人配置
+notes_data/
+private/
+personal_config.json
+*api*.txt
+*.mp3
+*.wav
+
+# 编辑器临时文件与系统文件
+~$*
+*.tmp
+.env
+.DS_Store
+Thumbs.db

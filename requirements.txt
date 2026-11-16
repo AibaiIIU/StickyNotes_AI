@@ -1,0 +1,8 @@
+# StickyNotes_AI 运行与开发依赖
+# 核心运行依赖（用于系统托盘图标与托盘菜单渲染）
+Pillow>=10.0.0
+pystray>=0.19.5
+
+# 可选依赖：打包为独立 .exe 与生成最新版 Word 说明书
+pyinstaller>=6.0.0
+python-docx>=1.1.0
