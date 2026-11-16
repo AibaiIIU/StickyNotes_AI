@@ -204,3 +204,13 @@ StickyNotes_AI_Release/
    Verify your API key and model name (Volcengine Doubao requires your `ep-xxxx` endpoint ID). Domestic Chinese endpoints try direct connection before falling back to system proxy.
 4. **Audio file failed to decode?**
    Windows MCI supports standard MP3 and PCM WAV files; encrypted formats (`.ncm`/`.qmc`) must be converted to standard MP3/WAV first.
+
+---
+
+## License
+
+Released under the [MIT License](LICENSE). Free to download, use, modify, and distribute.
+
+## Development Note
+
+This project was built with the assistance of AI coding tools to accelerate iteration. All features and release builds have been manually tested and verified.
