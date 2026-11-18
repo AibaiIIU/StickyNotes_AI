@@ -235,11 +235,11 @@ I18N = {
         "status_parsing": "AI Parsing...",
         "status_done": "Completed",
         "status_failed": "Failed",
-        "tip_double_click": "[Double-click time to edit]",
-        "tip_pending": "[Pending - Double-click to set]",
-        "tip_fuzzy": "[Fuzzy Date - Double-click to edit]",
-        "tip_expired": "[Expired - Double-click to edit]",
-        "tip_due_soon": "[Due Soon - Double-click to edit]",
+        "tip_double_click": "[Double-click to edit]",
+        "tip_pending": "[Pending · Double-click]",
+        "tip_fuzzy": "[Schedule · Double-click]",
+        "tip_expired": "[Expired · Double-click]",
+        "tip_due_soon": "[Due Soon · Double-click]",
         "pending_label": "Pending",
         "fuzzy_default": "Schedule",
         "unit_d": "d",
@@ -262,7 +262,7 @@ I18N = {
         "pref_title": "Preferences",
         "pref_lang_frame": " Interface Language ",
         "pref_lang_auto": "Follow System (Auto)",
-        "pref_lang_zh": "Simplified Chinese (简体中文)",
+        "pref_lang_zh": "Simplified Chinese",
         "pref_lang_en": "English",
         "pref_close_frame": " Main Window [×] Close Button Action ",
         "pref_close_tray": "Minimize to system tray (Default, keep running)",
@@ -1014,16 +1014,29 @@ class StickyNoteWindow:
         )
         self.tip_label.pack(side=tk.BOTTOM, pady=6)
 
+        init_time_str = self._format_time()
         self.time_label = tk.Label(
             self.main_frame,
-            text=self._format_time(),
+            text=init_time_str,
             bg="#FFF9C4",
             fg="#111111",
-            font=("Microsoft YaHei", 18, "bold"),
+            font=self._get_time_font(init_time_str),
             cursor="hand2",
         )
         self.time_label.pack(expand=True)
         self.time_label.bind("<Double-Button-1>", self.prompt_edit_time)
+
+    def _get_time_font(self, text_str):
+        length = len(str(text_str))
+        if length >= 11:
+            return ("Microsoft YaHei", 13, "bold")
+        if length >= 8:
+            return ("Microsoft YaHei", 15, "bold")
+        return ("Microsoft YaHei", 18, "bold")
+
+    def _refresh_time_label(self):
+        txt = self._format_time()
+        self.time_label.configure(text=txt, font=self._get_time_font(txt))
 
     def _format_time(self):
         if self.is_pending:
@@ -1090,6 +1103,8 @@ class StickyNoteWindow:
             top_fg = "#333333"
 
         self.tip_label.configure(text=tip_text)
+        txt_now = self._format_time()
+        self.time_label.configure(text=txt_now, font=self._get_time_font(txt_now))
         for w in (
             self.main_frame,
             self.task_entry,
@@ -3015,7 +3030,14 @@ Output format: Return ONLY a valid JSON array without any markdown formatting or
                         round(delta_sign * sum(float(x) for x in day_m))
                     )
 
-            if clause_has_duration and not is_relative_delta:
+            is_Fuzzy_Date_Expr = bool(
+                re.search(
+                    r"(?:in\s+\d+\s*days?|\d+\s*天后|tomorrow|after\s+tomorrow|明天|后天|大后天)",
+                    norm_clause,
+                    re.IGNORECASE,
+                )
+            )
+            if clause_has_duration and not is_relative_delta and not is_Fuzzy_Date_Expr:
                 time_mode = "timer"
 
             if is_relative_delta or any(

@@ -8,7 +8,7 @@ A lightweight Windows desktop countdown sticky notes & AI natural-language sched
 > - **End Users (Ready to Use)**: Download `StickyNotes_AI_v3.3.zip` from GitHub **Releases**, unzip it, and double-click **`StickyNotes_AI.exe`** (includes bilingual Word manuals and `sample_tasks.txt`; no Python installation required).
 > - **Developers (Source & Customization)**: Clone this repository, install dependencies, and run `python src/square_notes.py`. See the [Bilingual Developer Guide (DEV_GUIDE.md)](docs/DEV_GUIDE.md) for architecture and packaging details.
 
-![Main Grid Interface](docs/images/01_main_grid.png)
+![Main Grid Interface](docs/images/01_main_grid_en.png)
 
 ---
 
@@ -79,29 +79,28 @@ See [docs/DEV_GUIDE.md](docs/DEV_GUIDE.md) for architecture details, extension p
 
 Copy any sample line from [`examples/sample_tasks.txt`](examples/sample_tasks.txt) into the purple **`AI Memo`** box at the bottom of the console (configure your key or local Ollama endpoint under `API Config` first):
 
-![AI Task Parsing Preview](docs/images/03_ai_task_parsing.png)
+![AI Task Parsing Preview](docs/images/03_ai_task_parsing_en.png)
 
 1. **First input** (from `sample_tasks.txt`):
    ```text
-   十分钟后取外卖，明天上课，后天考试，顺便买包抽纸
+   Take out food in 10m, class tomorrow, exam in 2 days, buy tissues
    ```
-   (or in English: `Take out food in 10m, class tomorrow, exam in 2 days, buy tissues`)
    Click **`Parse (J)`** or press `Enter` to generate 4 cards automatically:
 
    | Clause | AI `action` | `time_mode` / `time_val` | Resulting Card |
    | :--- | :--- | :--- | :--- |
-   | Take out food in 10m | `create` | `timer` / `10m` | `#1` Countdown (`10m 00s`, Warm Yellow) |
-   | Class tomorrow | `create` | `fuzzy` / `Tomorrow` | `🗓️ #2` Fuzzy Schedule (`Tomorrow`, Sky Blue) |
-   | Exam in 2 days | `create` | `fuzzy` / `In 2 days` | `🗓️ #3` Fuzzy Schedule (`In 2 days`, Sky Blue) |
-   | Buy tissues | `create` | `pending` / `Pending` | `📌 #4` Pending To-Do (`Pending`, Rose Red) |
+   | Take out food in 10m | `create` | `timer` / `10m` | `#1` **Takeout** · `10m 00s` (Warm Yellow Countdown) |
+   | Class tomorrow | `create` | `fuzzy` / `Tomorrow` | `🗓️ #2` **Class** · `Tomorrow` (Sky Blue Fuzzy Schedule) |
+   | Exam in 2 days | `create` | `fuzzy` / `In 2 days` | `🗓️ #3` **Exam** · `In 2 days` (Sky Blue Fuzzy Schedule) |
+   | Buy tissues | `create` | `pending` / `Pending` | `📌 #4` **Buy Tissues** · `Pending` (Rose Red Pending To-Do) |
 
 2. **Follow-up relative update**:
    ```text
-   考试推迟一天  /  Postpone exam by 1 day
+   Postpone exam by 1 day
    ```
-   The parser matches the existing `#3` exam card and shifts its target date by `+1 day` automatically.
+   The parser matches the existing `#3 Exam` card and shifts its target date by `+1 day` (`In 2 days` → `In 3 days`) automatically.
 
-> **Manual Quick Input Tip**: The top `Time` box accepts durations (`30m`, `1h30m`, `5m10s`, `2d`, or plain numbers in minutes), Chinese expressions (`一刻钟`, `一个半小时`), fuzzy dates (`tomorrow`, `明天下午`), or `pending`/`待定`. **Double-click** any card's time label to edit it anytime.
+> **Manual Quick Input Tip**: The top `Time` box accepts durations (`30m`, `1h30m`, `5m10s`, `2d`, or plain numbers in minutes), fuzzy dates (`tomorrow`, `in 2 days`), or `pending`. **Double-click** any card's time label to edit it anytime.
 
 ---
 
@@ -126,10 +125,10 @@ Click `API Config` to open **AI Model API Config**, featuring 8 one-click OpenAI
 | **Google Gemini** | `https://generativelanguage.googleapis.com/v1beta/openai/chat/completions` | `gemini-2.5-flash` | Official OpenAI-compatible endpoint |
 | **Custom / Local** | `http://localhost:11434/v1/chat/completions` | `qwen2.5:7b` | Ollama / OneAPI; no API key required for localhost |
 
-![Settings & Click-Through Controls](docs/images/04_settings_and_controls.png)
+![Settings & Click-Through Controls](docs/images/04_settings_and_controls_en.png)
 
 ### 3. Grid vs Free Layout Modes & Auto-Wrapping
-![Grid vs Free Layout Modes](docs/images/02_layout_modes_compare.png)
+![Grid vs Free Layout Modes](docs/images/02_layout_modes_compare_en.png)
 
 - **Mode:Grid (Linked Matrix)**: Dragging any card's top title bar moves the entire note matrix together. Supports `Horizontal (H)` / `Vertical (V)` directions and wraps automatically when reaching `Max/Row` (set `0` for unlimited) or monitor work-area boundaries.
 - **Mode:Free (Independent Placement)**: Each card can be dragged to any desktop coordinate independently while keeping real-time `#1~#N` urgency badges updated. Press `M` anytime to snap back into the sorted grid.
@@ -146,7 +145,7 @@ Powered by Win32 `EnumDisplayMonitors` and `SetProcessDpiAwareness(2)`, the `Scr
   3. If the console is hidden, **right-click the system tray icon -> Toggle Click-Through**.
 
 ### 6. Custom MP3/WAV Trimming & 5-Min Advance Alert
-![Ringtone Trimming & Toast Alerts](docs/images/05_ringtone_and_alert.png)
+![Ringtone Trimming & Toast Alerts](docs/images/05_ringtone_and_alert_en.png)
 
 - **5 Alert Modes**: 4 built-in beeps/chimes plus **Custom MP3/WAV Audio** with `0.1s` sliders to trim any `≤ 10.0s` segment (supports auto-preview on slider release, 8.3 short paths for Unicode filenames, and automatic local copy to `notes_data/custom_ringtone.<ext>`).
 - **Dual Toast Popups**: Triggers an amber `5 Min Left` Toast at `≤ 300s` and a crimson `Time's Up` Toast at `0s` in the primary monitor's bottom-right corner. Popups stack cleanly and auto-close (and stop audio) after 10 seconds or immediately upon click.
