@@ -12,6 +12,7 @@ import sys
 import threading
 import time
 import tkinter as tk
+import tkinter.font as tkfont
 from tkinter import filedialog, messagebox, ttk
 import urllib.error
 import urllib.request
@@ -84,8 +85,8 @@ SIZE_PRESETS = {
     "medium": (175, 175),  # 中号 / 标准（默认）
     "large": (215, 215),   # 大号 / 宽松
 }
-MIN_NOTE_WIDTH = 130
-MIN_NOTE_HEIGHT = 125
+MIN_NOTE_WIDTH = 115
+MIN_NOTE_HEIGHT = 115
 MAX_NOTE_WIDTH = 520
 MAX_NOTE_HEIGHT = 520
 RESIZE_MARGIN = 14
@@ -1042,10 +1043,8 @@ class StickyNoteWindow:
             justify=tk.CENTER,
         )
         self.task_entry.insert(0, task_text)
-        self.task_entry.pack(fill=tk.X, side=tk.TOP, pady=(12, 0), padx=8)
-        self.task_entry.bind(
-            "<KeyRelease>", lambda e: self.manager.save_state()
-        )
+        self.task_entry.pack(fill=tk.X, side=tk.TOP, pady=(8, 0), padx=6)
+        self.task_entry.bind("<KeyRelease>", self._on_title_key_release)
         add_context_menu(
             self.task_entry,
             lang=lambda: self.manager.active_lang,
@@ -1058,9 +1057,9 @@ class StickyNoteWindow:
             bg="#FFF9C4",
             fg="#757575",
             font=("Microsoft YaHei", 7),
-            wraplength=max(80, self.width - 12),
+            wraplength=0,
         )
-        self.tip_label.pack(side=tk.BOTTOM, pady=6)
+        self.tip_label.pack(side=tk.BOTTOM, pady=4)
 
         init_time_str = self._format_time()
         self.time_label = tk.Label(
@@ -1068,8 +1067,8 @@ class StickyNoteWindow:
             text=init_time_str,
             bg="#FFF9C4",
             fg="#111111",
-            font=self._get_time_font(init_time_str),
-            wraplength=max(80, self.width - 14),
+            font=("Microsoft YaHei", 16, "bold"),
+            wraplength=0,
             cursor="hand2",
         )
         self.time_label.pack(expand=True)
@@ -1133,48 +1132,120 @@ class StickyNoteWindow:
         menu.tk_popup(event.x_root, event.y_root)
         return "break"
 
-    def _get_time_font(self, text_str):
-        length = len(str(text_str))
-        if length >= 11:
-            base = 13
-        elif length >= 8:
-            base = 15
+    def _on_title_key_release(self, event=None):
+        self._apply_responsive_layout()
+        self.manager.save_state()
+
+    def _fit_font_pt(
+        self,
+        text,
+        max_w,
+        max_h,
+        min_pt,
+        max_pt,
+        family="Microsoft YaHei",
+        weight="bold",
+    ):
+        cache = getattr(self.manager, "_font_cache", None)
+        if cache is None:
+            cache = {}
+            self.manager._font_cache = cache
+
+        sample = str(text) or " "
+        for pt in range(max_pt, min_pt - 1, -1):
+            key = (family, pt, weight)
+            f = cache.get(key)
+            if f is None:
+                f = tkfont.Font(root=self.win, family=family, size=pt, weight=weight)
+                cache[key] = f
+            tw = f.measure(sample)
+            lh = f.metrics("linespace")
+            if tw <= max_w and lh <= max_h:
+                return pt, lh
+
+        key = (family, min_pt, weight)
+        f_min = cache.get(key)
+        if f_min is None:
+            f_min = tkfont.Font(root=self.win, family=family, size=min_pt, weight=weight)
+            cache[key] = f_min
+        return min_pt, f_min.metrics("linespace")
+
+    def _compute_layout_metrics(self):
+        bar_h = max(18, min(30, int(round(self.height * 0.135))))
+        tip_pad = max(2, min(8, int(round(self.height * 0.035))))
+        avail_tip_w = max(60, self.width - 10)
+        max_tip_h = max(14, int(round(self.height * 0.13)))
+        tip_text = self.tip_label.cget("text") or self.manager.t("tip_double_click")
+        tip_fs, tip_lh = self._fit_font_pt(
+            tip_text, avail_tip_w, max_tip_h, 5, 10, family="Microsoft YaHei", weight="normal"
+        )
+
+        top_pad = max(3, min(14, int(round(self.height * 0.055))))
+        side_pad = max(4, min(12, int(round(self.width * 0.045))))
+        avail_title_w = max(60, self.width - 2 * side_pad - 8)
+        max_title_h = max(16, int(round(self.height * 0.18)))
+        title_sample = self.task_entry.get().strip() or "示例-可随时删除"
+        title_fs, title_lh = self._fit_font_pt(
+            title_sample, avail_title_w, max_title_h, 6, 16, family="Microsoft YaHei", weight="bold"
+        )
+
+        avail_time_w = max(60, self.width - 16)
+        avail_time_h = max(
+            22,
+            self.height - bar_h - top_pad - title_lh - tip_lh - 2 * tip_pad - 10,
+        )
+        return {
+            "bar_h": bar_h,
+            "tip_pad": tip_pad,
+            "tip_fs": tip_fs,
+            "top_pad": top_pad,
+            "side_pad": side_pad,
+            "title_fs": title_fs,
+            "avail_time_w": avail_time_w,
+            "avail_time_h": avail_time_h,
+        }
+
+    def _get_time_font(self, text_str, metrics=None):
+        if metrics is None:
+            metrics = self._compute_layout_metrics()
+        raw = str(text_str).strip()
+        if not self.is_fuzzy and not self.is_pending:
+            measure_sample = raw if len(raw) >= 7 else "00分 00秒"
         else:
-            base = 18
-        scale = min(self.width / 175.0, self.height / 175.0)
-        scaled = max(10, min(28, int(round(base * scale))))
-        return ("Microsoft YaHei", scaled, "bold")
+            measure_sample = raw or "Pending"
+        time_fs, _ = self._fit_font_pt(
+            measure_sample,
+            metrics["avail_time_w"],
+            max(16, int(metrics["avail_time_h"] * 0.82)),
+            7,
+            32,
+            family="Microsoft YaHei",
+            weight="bold",
+        )
+        return ("Microsoft YaHei", time_fs, "bold")
 
     def _apply_responsive_layout(self):
-        scale = min(self.width / 175.0, self.height / 175.0)
-        h_ratio = self.height / 175.0
-        w_ratio = self.width / 175.0
-
-        bar_h = max(20, min(28, int(round(22 * scale))))
+        m = self._compute_layout_metrics()
+        bar_h = m["bar_h"]
         self.top_bar.configure(height=bar_h)
 
-        rank_fs = max(7, min(11, int(round(8 * scale))))
+        rank_fs = max(6, min(11, int(round((bar_h - 4) * 0.42))))
         self.rank_label.configure(font=("Microsoft YaHei", rank_fs, "bold"))
 
-        close_fs = max(9, min(14, int(round(11 * scale))))
+        close_fs = max(8, min(14, int(round((bar_h - 4) * 0.55))))
         self.close_btn.configure(font=("Arial", close_fs, "bold"))
 
-        title_fs = max(9, min(16, int(round(11 * scale))))
-        top_pad = max(4, min(18, int(round(12 * h_ratio))))
-        side_pad = max(5, min(14, int(round(8 * w_ratio))))
-        self.task_entry.configure(font=("Microsoft YaHei", title_fs, "bold"))
-        self.task_entry.pack_configure(pady=(top_pad, 0), padx=side_pad)
+        self.task_entry.configure(font=("Microsoft YaHei", m["title_fs"], "bold"))
+        self.task_entry.pack_configure(pady=(m["top_pad"], 0), padx=m["side_pad"])
 
-        tip_fs = max(6, min(10, int(round(7 * scale))))
-        tip_pad = max(2, min(10, int(round(6 * h_ratio))))
         self.tip_label.configure(
-            font=("Microsoft YaHei", tip_fs),
-            wraplength=max(80, self.width - 12),
+            font=("Microsoft YaHei", m["tip_fs"]),
+            wraplength=0,
         )
-        self.tip_label.pack_configure(pady=tip_pad)
+        self.tip_label.pack_configure(pady=m["tip_pad"])
 
-        self.time_label.configure(wraplength=max(80, self.width - 14))
-        self._refresh_time_label()
+        self.time_label.configure(wraplength=0)
+        self._refresh_time_label(metrics=m)
 
     def set_dimensions(self, w, h):
         self.width = max(MIN_NOTE_WIDTH, min(MAX_NOTE_WIDTH, int(w)))
@@ -1307,9 +1378,9 @@ class StickyNoteWindow:
             self.manager.save_state()
             return "break"
 
-    def _refresh_time_label(self):
+    def _refresh_time_label(self, metrics=None):
         txt = self._format_time()
-        self.time_label.configure(text=txt, font=self._get_time_font(txt))
+        self.time_label.configure(text=txt, font=self._get_time_font(txt, metrics=metrics))
 
     def _format_time(self):
         if self.is_pending:
@@ -1375,9 +1446,12 @@ class StickyNoteWindow:
             time_fg = "#111111"
             top_fg = "#333333"
 
+        old_tip = self.tip_label.cget("text")
         self.tip_label.configure(text=tip_text)
-        txt_now = self._format_time()
-        self.time_label.configure(text=txt_now, font=self._get_time_font(txt_now))
+        if old_tip != tip_text:
+            self._apply_responsive_layout()
+        else:
+            self._refresh_time_label()
         for w in (
             self.main_frame,
             self.task_entry,
