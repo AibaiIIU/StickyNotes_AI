@@ -78,6 +78,18 @@ DATA_FILE = os.path.join(DATA_DIR, "notes_state.json")
 DEFAULT_API_ENDPOINT = "https://open.bigmodel.cn/api/paas/v4/chat/completions"
 DEFAULT_API_MODEL = "glm-4-flash"
 
+APP_VERSION = "v3.4"
+SIZE_PRESETS = {
+    "small": (145, 145),   # 小号 / 紧凑
+    "medium": (175, 175),  # 中号 / 标准（默认）
+    "large": (215, 215),   # 大号 / 宽松
+}
+MIN_NOTE_WIDTH = 130
+MIN_NOTE_HEIGHT = 125
+MAX_NOTE_WIDTH = 520
+MAX_NOTE_HEIGHT = 520
+RESIZE_MARGIN = 14
+
 
 def resolve_app_path(path):
     """将相对路径解析为运行期可用的真实路径，支持运行目录与内置资源目录"""
@@ -148,7 +160,7 @@ def detect_system_lang():
 
 I18N = {
     "zh": {
-        "app_title": "便签主控制台",
+        "app_title": "便签主控制台 v3.4",
         "task": "事项:",
         "time": "时间:",
         "btn_new": " + 新建 (N) ",
@@ -208,9 +220,17 @@ I18N = {
         "pref_save": "保存偏好设置",
         "pref_cancel": "取消",
         "pref_saved_tip": "偏好设置已成功保存并立即生效！",
+        "pref_size_frame": " 便签窗口大小预设 (Note Size Preset) ",
+        "size_small": "小号 / 紧凑 (145×145)",
+        "size_medium": "中号 / 标准 (175×175, 默认)",
+        "size_large": "大号 / 宽松 (215×215)",
+        "btn_reset_all_sizes": "重置所有便签为当前模板大小",
+        "tray_size_menu": "📐 窗口大小预设",
+        "ctx_reset_size": "恢复默认尺寸 (当前模板)",
+        "ctx_size_preset_menu": "全局窗口大小预设",
     },
     "en": {
-        "app_title": "Sticky Notes Console",
+        "app_title": "Sticky Notes Console v3.4",
         "task": "Task:",
         "time": "Time:",
         "btn_new": " + New (N) ",
@@ -270,6 +290,14 @@ I18N = {
         "pref_save": "Save Preferences",
         "pref_cancel": "Cancel",
         "pref_saved_tip": "Preferences saved and applied immediately!",
+        "pref_size_frame": " Note Size Preset ",
+        "size_small": "Small / Compact (145×145)",
+        "size_medium": "Medium / Standard (175×175, Default)",
+        "size_large": "Large / Spacious (215×215)",
+        "btn_reset_all_sizes": "Reset All Notes to Preset Size",
+        "tray_size_menu": "📐 Note Size Preset",
+        "ctx_reset_size": "Reset to Preset Size",
+        "ctx_size_preset_menu": "Global Size Preset",
     },
 }
 
@@ -463,29 +491,32 @@ def set_window_mouse_transparent(win, enable=True, alpha=1.0):
         pass
 
 
-def add_context_menu(widget, lang="zh"):
-    menu = tk.Menu(widget, tearoff=0)
-    cut_lbl = "Cut" if lang == "en" else "剪切"
-    copy_lbl = "Copy" if lang == "en" else "复制"
-    paste_lbl = "Paste" if lang == "en" else "粘贴"
-    sel_lbl = "Select All" if lang == "en" else "全选"
-
-    menu.add_command(
-        label=cut_lbl, command=lambda: widget.event_generate("<<Cut>>")
-    )
-    menu.add_command(
-        label=copy_lbl, command=lambda: widget.event_generate("<<Copy>>")
-    )
-    menu.add_command(
-        label=paste_lbl, command=lambda: widget.event_generate("<<Paste>>")
-    )
-    menu.add_separator()
-    menu.add_command(
-        label=sel_lbl,
-        command=lambda: (widget.select_range(0, tk.END), widget.icursor(tk.END)),
-    )
-
+def add_context_menu(widget, lang="zh", extra_builder=None):
     def show_menu(event):
+        cur_lang = lang() if callable(lang) else lang
+        menu = tk.Menu(widget, tearoff=0)
+        cut_lbl = "Cut" if cur_lang == "en" else "剪切"
+        copy_lbl = "Copy" if cur_lang == "en" else "复制"
+        paste_lbl = "Paste" if cur_lang == "en" else "粘贴"
+        sel_lbl = "Select All" if cur_lang == "en" else "全选"
+
+        menu.add_command(
+            label=cut_lbl, command=lambda: widget.event_generate("<<Cut>>")
+        )
+        menu.add_command(
+            label=copy_lbl, command=lambda: widget.event_generate("<<Copy>>")
+        )
+        menu.add_command(
+            label=paste_lbl, command=lambda: widget.event_generate("<<Paste>>")
+        )
+        menu.add_separator()
+        menu.add_command(
+            label=sel_lbl,
+            command=lambda: (widget.select_range(0, tk.END), widget.icursor(tk.END)),
+        )
+        if extra_builder is not None:
+            extra_builder(menu)
+
         widget.focus_set()
         menu.tk_popup(event.x_root, event.y_root)
         return "break"
@@ -859,10 +890,20 @@ class StickyNoteWindow:
         is_pending=False,
         warned_5m=False,
         warned_due=False,
+        width=None,
+        height=None,
+        has_custom_size=False,
     ):
         self.manager = manager
         self.note_id = note_id
-        self.size = 175
+        preset_w, preset_h = self.manager.get_preset_dimensions()
+        self.has_custom_size = bool(has_custom_size and width and height)
+        if self.has_custom_size:
+            self.width = max(MIN_NOTE_WIDTH, min(MAX_NOTE_WIDTH, int(width)))
+            self.height = max(MIN_NOTE_HEIGHT, min(MAX_NOTE_HEIGHT, int(height)))
+        else:
+            self.width = preset_w
+            self.height = preset_h
         self.rank_num = 1
         self.is_fuzzy = is_fuzzy
         self.fuzzy_label = fuzzy_label
@@ -898,13 +939,19 @@ class StickyNoteWindow:
 
         init_x = init_pos[0] if init_pos else 100
         init_y = init_pos[1] if init_pos else 100
-        self.win.geometry(f"{self.size}x{self.size}+{init_x}+{init_y}")
+        self.win.geometry(f"{self.width}x{self.height}+{init_x}+{init_y}")
 
         self.single_drag_start_x = 0
         self.single_drag_start_y = 0
+        self._resize_mode = ""
+        self._resize_start_x = 0
+        self._resize_start_y = 0
+        self._resize_orig_w = self.width
+        self._resize_orig_h = self.height
 
         self._build_ui(task_text)
         self._update_color()
+        self._apply_responsive_layout()
         self.win.update_idletasks()
 
     def set_fuzzy_schedule(self, label_text):
@@ -986,10 +1033,6 @@ class StickyNoteWindow:
         )
         self.close_btn.pack(side=tk.RIGHT, ipadx=4)
 
-        for widget in (self.top_bar, self.rank_label):
-            widget.bind("<ButtonPress-1>", self._on_drag_start)
-            widget.bind("<B1-Motion>", self._on_drag_motion)
-
         self.task_entry = tk.Entry(
             self.main_frame,
             bg="#FFF9C4",
@@ -1003,7 +1046,11 @@ class StickyNoteWindow:
         self.task_entry.bind(
             "<KeyRelease>", lambda e: self.manager.save_state()
         )
-        add_context_menu(self.task_entry, lang=self.manager.active_lang)
+        add_context_menu(
+            self.task_entry,
+            lang=lambda: self.manager.active_lang,
+            extra_builder=lambda m: (m.add_separator(), self._append_note_menu_items(m)),
+        )
 
         self.tip_label = tk.Label(
             self.main_frame,
@@ -1011,6 +1058,7 @@ class StickyNoteWindow:
             bg="#FFF9C4",
             fg="#757575",
             font=("Microsoft YaHei", 7),
+            wraplength=max(80, self.width - 12),
         )
         self.tip_label.pack(side=tk.BOTTOM, pady=6)
 
@@ -1021,18 +1069,243 @@ class StickyNoteWindow:
             bg="#FFF9C4",
             fg="#111111",
             font=self._get_time_font(init_time_str),
+            wraplength=max(80, self.width - 14),
             cursor="hand2",
         )
         self.time_label.pack(expand=True)
         self.time_label.bind("<Double-Button-1>", self.prompt_edit_time)
 
+        for widget in (
+            self.win,
+            self.main_frame,
+            self.top_bar,
+            self.rank_label,
+            self.task_entry,
+            self.time_label,
+            self.tip_label,
+        ):
+            widget.bind("<Motion>", self._on_hover_motion, add="+")
+            widget.bind("<Leave>", self._on_hover_leave, add="+")
+            widget.bind("<ButtonPress-1>", self._on_mouse_down, add="+")
+            widget.bind("<B1-Motion>", self._on_mouse_move, add="+")
+            widget.bind("<ButtonRelease-1>", self._on_mouse_up, add="+")
+
+        for widget in (
+            self.main_frame,
+            self.top_bar,
+            self.rank_label,
+            self.time_label,
+            self.tip_label,
+        ):
+            widget.bind("<Button-3>", self._show_note_context_menu)
+
+    def _append_note_menu_items(self, menu):
+        menu.add_command(
+            label=self.manager.t("ctx_reset_size"),
+            command=self.reset_to_preset_size,
+        )
+        preset_sub = tk.Menu(menu, tearoff=0)
+        for key, i18n_key in (
+            ("small", "size_small"),
+            ("medium", "size_medium"),
+            ("large", "size_large"),
+        ):
+            prefix = "✓ " if self.manager.size_preset == key else "   "
+            preset_sub.add_command(
+                label=prefix + self.manager.t(i18n_key),
+                command=lambda k=key: self.manager.apply_size_preset(k),
+            )
+        preset_sub.add_separator()
+        preset_sub.add_command(
+            label=self.manager.t("btn_reset_all_sizes"),
+            command=self.manager.reset_all_notes_size,
+        )
+        menu.add_cascade(
+            label=self.manager.t("ctx_size_preset_menu"),
+            menu=preset_sub,
+        )
+
+    def _show_note_context_menu(self, event):
+        if self.manager.is_locked:
+            return "break"
+        menu = tk.Menu(self.win, tearoff=0)
+        self._append_note_menu_items(menu)
+        menu.tk_popup(event.x_root, event.y_root)
+        return "break"
+
     def _get_time_font(self, text_str):
         length = len(str(text_str))
         if length >= 11:
-            return ("Microsoft YaHei", 13, "bold")
-        if length >= 8:
-            return ("Microsoft YaHei", 15, "bold")
-        return ("Microsoft YaHei", 18, "bold")
+            base = 13
+        elif length >= 8:
+            base = 15
+        else:
+            base = 18
+        scale = min(self.width / 175.0, self.height / 175.0)
+        scaled = max(10, min(28, int(round(base * scale))))
+        return ("Microsoft YaHei", scaled, "bold")
+
+    def _apply_responsive_layout(self):
+        scale = min(self.width / 175.0, self.height / 175.0)
+        h_ratio = self.height / 175.0
+        w_ratio = self.width / 175.0
+
+        bar_h = max(20, min(28, int(round(22 * scale))))
+        self.top_bar.configure(height=bar_h)
+
+        rank_fs = max(7, min(11, int(round(8 * scale))))
+        self.rank_label.configure(font=("Microsoft YaHei", rank_fs, "bold"))
+
+        close_fs = max(9, min(14, int(round(11 * scale))))
+        self.close_btn.configure(font=("Arial", close_fs, "bold"))
+
+        title_fs = max(9, min(16, int(round(11 * scale))))
+        top_pad = max(4, min(18, int(round(12 * h_ratio))))
+        side_pad = max(5, min(14, int(round(8 * w_ratio))))
+        self.task_entry.configure(font=("Microsoft YaHei", title_fs, "bold"))
+        self.task_entry.pack_configure(pady=(top_pad, 0), padx=side_pad)
+
+        tip_fs = max(6, min(10, int(round(7 * scale))))
+        tip_pad = max(2, min(10, int(round(6 * h_ratio))))
+        self.tip_label.configure(
+            font=("Microsoft YaHei", tip_fs),
+            wraplength=max(80, self.width - 12),
+        )
+        self.tip_label.pack_configure(pady=tip_pad)
+
+        self.time_label.configure(wraplength=max(80, self.width - 14))
+        self._refresh_time_label()
+
+    def set_dimensions(self, w, h):
+        self.width = max(MIN_NOTE_WIDTH, min(MAX_NOTE_WIDTH, int(w)))
+        self.height = max(MIN_NOTE_HEIGHT, min(MAX_NOTE_HEIGHT, int(h)))
+        try:
+            cur_x = self.win.winfo_x()
+            cur_y = self.win.winfo_y()
+            self.win.geometry(f"{self.width}x{self.height}+{cur_x}+{cur_y}")
+        except Exception:
+            self.win.geometry(f"{self.width}x{self.height}")
+        self._apply_responsive_layout()
+
+    def reset_to_preset_size(self):
+        pw, ph = self.manager.get_preset_dimensions()
+        self.has_custom_size = False
+        self.set_dimensions(pw, ph)
+        if self.manager.drag_mode == "box":
+            self.manager.sort_and_arrange(force=True)
+        self.manager.save_state()
+
+    def _is_ctrl_pressed(self, event=None):
+        if event is not None and (getattr(event, "state", 0) & 0x0004):
+            return True
+        try:
+            return bool(ctypes.windll.user32.GetAsyncKeyState(0x11) & 0x8000)
+        except Exception:
+            return False
+
+    def _detect_resize_zone(self, x_root, y_root):
+        try:
+            rx = x_root - self.win.winfo_rootx()
+            ry = y_root - self.win.winfo_rooty()
+        except Exception:
+            return ""
+        if ry < 24 and rx >= self.width - 28:
+            return ""
+        on_right = rx >= self.width - RESIZE_MARGIN
+        on_bottom = ry >= self.height - RESIZE_MARGIN
+        if rx >= self.width - 18 and ry >= self.height - 18:
+            return "se"
+        if on_right:
+            return "e"
+        if on_bottom:
+            return "s"
+        return ""
+
+    def _restore_cursors(self):
+        default_map = {
+            self.win: "",
+            self.main_frame: "",
+            self.top_bar: "",
+            self.rank_label: "",
+            self.tip_label: "",
+            self.task_entry: "arrow" if self.manager.is_locked else "xterm",
+            self.time_label: "arrow" if self.manager.is_locked else "hand2",
+        }
+        for w, cur in default_map.items():
+            try:
+                w.configure(cursor=cur)
+            except Exception:
+                pass
+
+    def _on_hover_motion(self, event):
+        if self.manager.is_locked or self._resize_mode:
+            return
+        if self._is_ctrl_pressed(event):
+            zone = self._detect_resize_zone(event.x_root, event.y_root)
+            cursor_map = {
+                "se": "size_nw_se",
+                "e": "size_we",
+                "s": "size_ns",
+            }
+            if zone in cursor_map:
+                cur = cursor_map[zone]
+                try:
+                    self.win.configure(cursor=cur)
+                    event.widget.configure(cursor=cur)
+                except Exception:
+                    pass
+                return
+        self._restore_cursors()
+
+    def _on_hover_leave(self, event):
+        if not self._resize_mode:
+            self._restore_cursors()
+
+    def _on_mouse_down(self, event):
+        if self.manager.is_locked:
+            return
+        if self._is_ctrl_pressed(event):
+            zone = self._detect_resize_zone(event.x_root, event.y_root)
+            if zone:
+                self._resize_mode = zone
+                self._resize_start_x = event.x_root
+                self._resize_start_y = event.y_root
+                self._resize_orig_w = self.width
+                self._resize_orig_h = self.height
+                return "break"
+        if event.widget in (self.top_bar, self.rank_label):
+            self._on_drag_start(event)
+
+    def _on_mouse_move(self, event):
+        if self.manager.is_locked:
+            return
+        if self._resize_mode:
+            dx = event.x_root - self._resize_start_x
+            dy = event.y_root - self._resize_start_y
+            new_w = (
+                self._resize_orig_w + dx
+                if "e" in self._resize_mode
+                else self.width
+            )
+            new_h = (
+                self._resize_orig_h + dy
+                if "s" in self._resize_mode
+                else self.height
+            )
+            self.has_custom_size = True
+            self.set_dimensions(new_w, new_h)
+            if self.manager.drag_mode == "box":
+                self.manager.sort_and_arrange(force=True)
+            return "break"
+        if event.widget in (self.top_bar, self.rank_label):
+            self._on_drag_motion(event)
+
+    def _on_mouse_up(self, event):
+        if self._resize_mode:
+            self._resize_mode = ""
+            self._restore_cursors()
+            self.manager.save_state()
+            return "break"
 
     def _refresh_time_label(self):
         txt = self._format_time()
@@ -1127,12 +1400,12 @@ class StickyNoteWindow:
             old_label = self.fuzzy_label
             self.refresh_fuzzy_by_date()
             if self.fuzzy_label != old_label:
-                self.time_label.configure(text=self._format_time())
+                self._refresh_time_label()
             return
 
         now = time.time()
         self.remaining_seconds = max(0, int(math.ceil(self.target_timestamp - now)))
-        self.time_label.configure(text=self._format_time())
+        self._refresh_time_label()
         self._update_color()
 
         if 0 < self.remaining_seconds <= 300:
@@ -1169,7 +1442,7 @@ class StickyNoteWindow:
 
     def move_to(self, x, y, rank_index):
         self.rank_num = rank_index
-        self.win.geometry(f"{self.size}x{self.size}+{x}+{y}")
+        self.win.geometry(f"{self.width}x{self.height}+{x}+{y}")
         self.update_rank_label()
 
     def update_rank_label(self):
@@ -1192,11 +1465,13 @@ class StickyNoteWindow:
 
     def set_clickthrough(self, lock):
         if lock:
+            self._resize_mode = ""
             self.task_entry.configure(state="readonly", cursor="arrow")
             self.time_label.configure(cursor="arrow")
         else:
             self.task_entry.configure(state="normal", cursor="xterm")
             self.time_label.configure(cursor="hand2")
+            self._restore_cursors()
 
         set_window_mouse_transparent(
             self.win, enable=lock, alpha=self.manager.alpha
@@ -1225,6 +1500,7 @@ class NoteManager:
         self.next_id = 1
         self.last_order = []
         self.layout_mode = "horizontal"
+        self.size_preset = "medium"
         self.is_topmost = True
         self.drag_mode = "box"
         self.is_locked = False
@@ -1405,10 +1681,39 @@ class NoteManager:
         def _on_open_pref(icon, item):
             self.root.after(0, self.open_preferences_dialog)
 
+        def _on_set_size(key):
+            return lambda icon, item: self.root.after(0, lambda k=key: self.apply_size_preset(k))
+
+        def _on_reset_sizes(icon, item):
+            self.root.after(0, self.reset_all_notes_size)
+
         def _on_exit(icon, item):
             if self.tray_icon:
                 self.tray_icon.stop()
             self.root.after(0, self.on_app_exit)
+
+        size_submenu = pystray.Menu(
+            pystray.MenuItem(
+                self.t("size_small"),
+                _on_set_size("small"),
+                checked=lambda item: self.size_preset == "small",
+                radio=True,
+            ),
+            pystray.MenuItem(
+                self.t("size_medium"),
+                _on_set_size("medium"),
+                checked=lambda item: self.size_preset == "medium",
+                radio=True,
+            ),
+            pystray.MenuItem(
+                self.t("size_large"),
+                _on_set_size("large"),
+                checked=lambda item: self.size_preset == "large",
+                radio=True,
+            ),
+            pystray.Menu.SEPARATOR,
+            pystray.MenuItem(self.t("btn_reset_all_sizes"), _on_reset_sizes),
+        )
 
         tray_menu = pystray.Menu(
             pystray.MenuItem(
@@ -1419,6 +1724,7 @@ class NoteManager:
             pystray.MenuItem(self.t("tray_toggle_notes"), _on_toggle_all_notes),
             pystray.MenuItem(self.t("tray_toggle_lock"), _on_toggle_lock),
             pystray.MenuItem(self.t("tray_toggle_layout"), _on_toggle_layout),
+            pystray.MenuItem(self.t("tray_size_menu"), size_submenu),
             pystray.Menu.SEPARATOR,
             pystray.MenuItem(self.t("tray_sound"), _on_open_sound),
             pystray.MenuItem(self.t("tray_api"), _on_open_api),
@@ -1785,6 +2091,40 @@ class NoteManager:
             value="en",
         ).pack(anchor="w", pady=2)
 
+        frame_size = tk.LabelFrame(
+            main_box, text=self.t("pref_size_frame"), padx=12, pady=8
+        )
+        frame_size.pack(fill=tk.X, pady=(0, 10))
+
+        size_var = tk.StringVar(value=self.size_preset)
+        for s_key, i18n_key in (
+            ("small", "size_small"),
+            ("medium", "size_medium"),
+            ("large", "size_large"),
+        ):
+            tk.Radiobutton(
+                frame_size,
+                text=self.t(i18n_key),
+                variable=size_var,
+                value=s_key,
+            ).pack(anchor="w", pady=2)
+
+        def reset_all_from_pref():
+            self.apply_size_preset(size_var.get(), reset_custom=True)
+
+        tk.Button(
+            frame_size,
+            text=self.t("btn_reset_all_sizes"),
+            command=reset_all_from_pref,
+            bg="#E3F2FD",
+            fg="#1565C0",
+            bd=0,
+            padx=10,
+            pady=3,
+            font=("Microsoft YaHei", 8, "bold"),
+            cursor="hand2",
+        ).pack(anchor="w", pady=(6, 2))
+
         frame_close = tk.LabelFrame(
             main_box, text=self.t("pref_close_frame"), padx=12, pady=8
         )
@@ -1818,12 +2158,14 @@ class NoteManager:
                 pass
             self.pref_language = lang_var.get()
             self.close_action = close_var.get()
+            self.size_preset = size_var.get()
             self.update_active_lang()
             self.root.title(self.t("app_title"))
             self._build_control_bar(init_pos=False)
+            self.apply_size_preset(self.size_preset, reset_custom=False)
             for n in self.notes:
                 n._update_color()
-                n.time_label.configure(text=n._format_time())
+                n._apply_responsive_layout()
 
             if self.tray_icon:
                 try:
@@ -1867,7 +2209,7 @@ class NoteManager:
         auto_fit_window(
             dialog,
             min_w=460,
-            min_h=300,
+            min_h=410,
             pad_w=24,
             pad_h=16,
             center_on=self.root if is_root_visible else None,
@@ -2880,7 +3222,7 @@ Output format: Return ONLY a valid JSON array without any markdown formatting or
                 headers={
                     "Content-Type": "application/json",
                     "Authorization": f"Bearer {self.api_key}",
-                    "User-Agent": "StickyNoteApp/3.3",
+                    "User-Agent": "StickyNoteApp/3.4",
                 },
                 method="POST",
             )
@@ -3329,6 +3671,25 @@ Output format: Return ONLY a valid JSON array without any markdown formatting or
             )
         self.save_state()
 
+    def get_preset_dimensions(self):
+        return SIZE_PRESETS.get(self.size_preset, SIZE_PRESETS["medium"])
+
+    def apply_size_preset(self, preset_key, reset_custom=False):
+        if preset_key not in SIZE_PRESETS:
+            preset_key = "medium"
+        self.size_preset = preset_key
+        pw, ph = self.get_preset_dimensions()
+        for n in self.notes:
+            if reset_custom or not n.has_custom_size:
+                n.has_custom_size = False
+                n.set_dimensions(pw, ph)
+        if self.drag_mode == "box":
+            self.sort_and_arrange(force=True)
+        self.save_state()
+
+    def reset_all_notes_size(self):
+        self.apply_size_preset(self.size_preset, reset_custom=True)
+
     def create_note(
         self,
         task_text,
@@ -3343,6 +3704,9 @@ Output format: Return ONLY a valid JSON array without any markdown formatting or
         warned_5m=False,
         warned_due=False,
         do_sort=True,
+        width=None,
+        height=None,
+        has_custom_size=False,
     ):
         note = StickyNoteWindow(
             self,
@@ -3358,6 +3722,9 @@ Output format: Return ONLY a valid JSON array without any markdown formatting or
             is_pending=is_pending,
             warned_5m=warned_5m,
             warned_due=warned_due,
+            width=width,
+            height=height,
+            has_custom_size=has_custom_size,
         )
         self.next_id += 1
         self.notes.append(note)
@@ -3501,47 +3868,55 @@ Output format: Return ONLY a valid JSON array without any markdown formatting or
             max_per_row = 5
 
         gap = 14
-        size = 175
-        step = size + gap
 
-        cur_col = 0
-        cur_row = 0
+        if self.layout_mode == "horizontal":
+            cur_x = self.anchor_x
+            cur_y = self.anchor_y
+            cur_col = 0
+            row_max_h = 0
 
-        for idx, note in enumerate(self.notes):
-            if self.layout_mode == "horizontal":
-                target_x = self.anchor_x + cur_col * step
+            for idx, note in enumerate(self.notes):
                 is_max_reached = (max_per_row > 0) and (
                     cur_col >= max_per_row
                 )
-                is_screen_overflow = (target_x + size > mon_right - 10) and (
-                    cur_col > 0
-                )
+                is_screen_overflow = (
+                    cur_x + note.width > mon_right - 10
+                ) and (cur_col > 0)
 
                 if is_max_reached or is_screen_overflow:
                     cur_col = 0
-                    cur_row += 1
-                    target_x = self.anchor_x
+                    cur_x = self.anchor_x
+                    cur_y += row_max_h + gap
+                    row_max_h = 0
 
-                target_y = self.anchor_y + cur_row * step
-                note.move_to(target_x, target_y, idx + 1)
+                note.move_to(cur_x, cur_y, idx + 1)
+                cur_x += note.width + gap
+                row_max_h = max(row_max_h, note.height)
                 cur_col += 1
 
-            else:  # vertical
-                target_y = self.anchor_y + cur_row * step
+        else:  # vertical
+            cur_x = self.anchor_x
+            cur_y = self.anchor_y
+            cur_row = 0
+            col_max_w = 0
+
+            for idx, note in enumerate(self.notes):
                 is_max_reached = (max_per_row > 0) and (
                     cur_row >= max_per_row
                 )
                 is_screen_overflow = (
-                    target_y + size > mon_bottom - 20
+                    cur_y + note.height > mon_bottom - 20
                 ) and (cur_row > 0)
 
                 if is_max_reached or is_screen_overflow:
                     cur_row = 0
-                    cur_col += 1
-                    target_y = self.anchor_y
+                    cur_y = self.anchor_y
+                    cur_x += col_max_w + gap
+                    col_max_w = 0
 
-                target_x = self.anchor_x + cur_col * step
-                note.move_to(target_x, target_y, idx + 1)
+                note.move_to(cur_x, cur_y, idx + 1)
+                cur_y += note.height + gap
+                col_max_w = max(col_max_w, note.width)
                 cur_row += 1
 
     def _schedule_tick(self):
@@ -3567,6 +3942,9 @@ Output format: Return ONLY a valid JSON array without any markdown formatting or
                         "warned_5m": n.warned_5m,
                         "warned_due": n.warned_due,
                         "pos": (n.win.winfo_x(), n.win.winfo_y()),
+                        "width": n.width,
+                        "height": n.height,
+                        "has_custom_size": n.has_custom_size,
                     }
                 )
 
@@ -3579,6 +3957,7 @@ Output format: Return ONLY a valid JSON array without any markdown formatting or
 
             state = {
                 "layout_mode": self.layout_mode,
+                "size_preset": self.size_preset,
                 "drag_mode": self.drag_mode,
                 "is_topmost": self.is_topmost,
                 "is_locked": self.is_locked,
@@ -3613,6 +3992,10 @@ Output format: Return ONLY a valid JSON array without any markdown formatting or
                 state = json.load(f)
 
             self.layout_mode = state.get("layout_mode", "horizontal")
+            saved_preset = state.get("size_preset", "medium")
+            self.size_preset = (
+                saved_preset if saved_preset in SIZE_PRESETS else "medium"
+            )
             self.drag_mode = state.get("drag_mode", "box")
             self.is_topmost = state.get("is_topmost", True)
             self.is_locked = state.get("is_locked", False)
@@ -3677,6 +4060,9 @@ Output format: Return ONLY a valid JSON array without any markdown formatting or
                     warned_5m=n_data.get("warned_5m", def_warn_5m),
                     warned_due=n_data.get("warned_due", def_warn_due),
                     do_sort=False,
+                    width=n_data.get("width"),
+                    height=n_data.get("height"),
+                    has_custom_size=n_data.get("has_custom_size", False),
                 )
 
             self.sort_and_arrange(force=True)

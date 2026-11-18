@@ -38,8 +38,8 @@ StickyNotes_AI_Release/
 | **时间与自然语言解析** (`convert_cn_numbers`, `parse_time_input`, `parse_fuzzy_date_anchor`, `compute_dynamic_fuzzy_label`) | 处理中文数字（如“一个半小时”、“一刻钟”）、复合时长单位、模糊日程锚点及跨天动态日期标签演化。 |
 | **Win32 桌面底层能力** (`get_screen_monitors`, `set_window_mouse_transparent`, `mci_open_audio`) | 通过 `EnumDisplayMonitors` 与 `SetProcessDpiAwareness(2)` 适配多屏 DPI；通过 `SetWindowLongW(WS_EX_TRANSPARENT)` 实现鼠标点击穿透；通过 `winmm.dll` MCI 与 `GetShortPathNameW` 实现 MP3/WAV 精准片段播放。 |
 | **`ToastNotification`** | 主屏幕右下角垂直堆叠式预警弹窗（橙色 5 分钟临期 / 红色到期），支持 10 秒自动销毁及单击静音。 |
-| **`StickyNoteWindow`** | `175×175` 方形便签窗口实体，负责五色状态渲染、原位文字编辑、双击时间弹窗、拖拽事件转发与穿透锁定状态同步。 |
-| **`NoteManager`** | 中枢控制器，负责控制台构建、I18N 中英热切换、`tick()` 定时刷新、`sort_and_arrange()` 三阶排序与自动换行、AI 异步请求线程与正则二次校准，以及 JSON 持久化。 |
+| **`StickyNoteWindow`** | 方形/自定义尺寸便签窗口实体（默认 `175×175`），负责五色状态渲染、原位文字编辑、双击时间弹窗、`Ctrl`+拖拽自由缩放、内部字号/换行自适应、右键菜单与穿透锁定状态同步。 |
+| **`NoteManager`** | 中枢控制器，负责控制台构建、I18N 中英热切换、`SIZE_PRESETS` 三档尺寸模板切换、`tick()` 定时刷新、`sort_and_arrange()` 三阶排序与变尺寸防重叠流式换行、AI 异步请求线程与正则二次校准，以及 JSON 持久化。 |
 
 ### 3. 常见扩展接口与定制方法
 
@@ -47,8 +47,11 @@ StickyNotes_AI_Release/
    在 `NoteManager.open_api_settings_dialog()` 的 `providers` 列表中追加元组：
    `(所属行 row_p1/row_p2, 按钮显示名称, OpenAI兼容接口URL, 默认模型名, 按钮背景色, 提示说明文案)`。
    若新增国内直连域名，可同步加入 `_ai_worker_thread()` 中的 `domestic_hosts` 列表以启用优先直连策略。
-2. **自定义卡片尺寸与配色**：
-   - 修改 `StickyNoteWindow.__init__` 中的 `self.size = 175` 以及 `NoteManager.sort_and_arrange()` 中的 `gap = 14`、`size = 175`；
+2. **自定义卡片尺寸预设、缩放边界与流式防重叠布局**：
+   - 修改顶部 `SIZE_PRESETS`（`"small": (145, 145)`、`"medium": (175, 175)`、`"large": (215, 215)`）及 `MIN_NOTE_WIDTH` / `MIN_NOTE_HEIGHT` / `MAX_NOTE_WIDTH` / `MAX_NOTE_HEIGHT`；
+   - `StickyNoteWindow._apply_responsive_layout()` 根据 `min(width/175, height/175)` 自动按比例缩放顶栏高度、标题字号、倒计时字号与 `wraplength`；
+   - `NoteManager.sort_and_arrange()` 在横排模式下跟踪当前行最大高度 `row_max_h`、在竖排模式下跟踪当前列最大宽度 `col_max_w`，确保混合尺寸便签不重叠；
+   - `notes_state.json` 顶层持久化 `size_preset`，每张卡片持久化 `width`、`height` 与 `has_custom_size` 布尔标识。
    - 修改 `StickyNoteWindow._update_color()` 中的五套状态配色十六进制值。
 3. **扩展界面语言 (I18N)**：
    在文件顶部 `I18N` 字典中新增语种键（如 `"ja"`），并在 `open_preferences_dialog()` 添加对应单选按钮即可实现热切换。
@@ -62,11 +65,12 @@ pip install -r requirements.txt
 python build.py
 ```
 
-脚本执行完毕后，将在 `dist/StickyNotes_AI_v3.3/` 下自动生成可直接压缩分发的完整目录：
+脚本执行完毕后，将在 `dist/StickyNotes_AI_v3.4/` 下自动生成可直接压缩分发的完整目录：
 - `StickyNotes_AI.exe`（单文件无黑框、内嵌 `assets/app.ico`）
 - `USER_MANUAL_CN.docx`
 - `USER_MANUAL_EN.docx`
 - `sample_tasks.txt`
+- `LICENSE`
 
 ---
 
@@ -104,13 +108,18 @@ StickyNotes_AI_Release/
   - Windows MCI audio playback (`winmm.dll`) with `GetShortPathNameW` 8.3 short paths for reliable Unicode filename support.
 - **UI & Controller Classes**:
   - `ToastNotification`: Stacked bottom-right 5-minute warning and due alerts;
-  - `StickyNoteWindow`: `175×175` square card view, inline title editing, double-click time editor, and click-through toggling;
-  - `NoteManager`: Central coordinator managing the console bar, `I18N` hot-switching, 1-second `tick()`, 3-tier `sort_and_arrange()`, background AI API worker with regex calibration, and JSON persistence.
+  - `StickyNoteWindow`: Square/resizable card view (default `175×175`), handling 5-state rendering, inline editing, double-click time editor, `Ctrl`+drag free resizing, responsive font/`wraplength` scaling, right-click size menus, and click-through state sync;
+  - `NoteManager`: Central coordinator managing the console bar, `I18N` hot-switching, `SIZE_PRESETS` switching, 1-second `tick()`, 3-tier `sort_and_arrange()` with variable-size overlap-free flow layout, background AI API worker, and JSON persistence.
 
 ### 3. Extension Points
 
 1. **Adding AI Provider Presets**: Append a tuple to `providers` inside `NoteManager.open_api_settings_dialog()`, and optionally add domestic hostnames to `domestic_hosts` inside `_ai_worker_thread()`.
-2. **Customizing Card Size & Theme Colors**: Adjust `self.size = 175` in `StickyNoteWindow.__init__`, `size = 175` / `gap = 14` in `NoteManager.sort_and_arrange()`, and color hex codes in `StickyNoteWindow._update_color()`.
+2. **Customizing Card Size Presets, Resize Limits & Persistence**:
+   - Edit `SIZE_PRESETS` (`"small": (145, 145)`, `"medium": (175, 175)`, `"large": (215, 215)`), `MIN_NOTE_WIDTH`/`MIN_NOTE_HEIGHT`, and `MAX_NOTE_WIDTH`/`MAX_NOTE_HEIGHT` at the top of `src/square_notes.py`;
+   - `StickyNoteWindow._apply_responsive_layout()` dynamically scales fonts, paddings, and `wraplength` from card dimensions;
+   - `NoteManager.sort_and_arrange()` tracks `row_max_h` (horizontal mode) and `col_max_w` (vertical mode) so mixed-size cards wrap without overlapping;
+   - `notes_state.json` persists `size_preset` globally and `width`, `height`, and `has_custom_size` per note.
+   - Update color hex codes in `StickyNoteWindow._update_color()` to customize card themes.
 3. **Adding UI Languages**: Add a new locale dictionary entry in `I18N` and a corresponding radio button in `open_preferences_dialog()`.
 4. **Replacing the App Icon**: Replace `assets/app.ico` with your own multi-resolution `.ico` file (`32×32`, `64×64`, `256×256` recommended). Both source runs and PyInstaller builds automatically pick it up for the EXE, taskbar, window titlebar, and system tray.
 
@@ -121,4 +130,4 @@ pip install -r requirements.txt
 python build.py
 ```
 
-Outputs a ready-to-zip distribution folder at `dist/StickyNotes_AI_v3.3/` containing `StickyNotes_AI.exe`, `USER_MANUAL_CN.docx`, `USER_MANUAL_EN.docx`, and `sample_tasks.txt`.
+Outputs a ready-to-zip distribution folder at `dist/StickyNotes_AI_v3.4/` containing `StickyNotes_AI.exe`, `USER_MANUAL_CN.docx`, `USER_MANUAL_EN.docx`, `sample_tasks.txt`, and `LICENSE`.

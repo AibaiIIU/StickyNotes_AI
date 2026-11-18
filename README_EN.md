@@ -1,11 +1,11 @@
 [简体中文](README.md) | [English](README_EN.md)
 
-# StickyNotes_AI (v3.3) — Smart Square Desktop Countdown Sticky Notes
+# StickyNotes_AI (v3.4) — Smart Square Desktop Countdown Sticky Notes
 
-A lightweight Windows desktop countdown sticky notes & AI natural-language scheduler built with Python (`Tkinter` + Win32 API). It features one-click AI task parsing and relative rescheduling, 3-tier urgency auto-sorting, Grid/Free dual layout modes, hardware-level mouse click-through, per-monitor DPI scaling, custom MP3/WAV trimming (≤10s), and 5-minute advance Toast alerts.
+A lightweight Windows desktop countdown sticky notes & AI natural-language scheduler built with Python (`Tkinter` + Win32 API). It features one-click AI task parsing and relative rescheduling, 3-tier urgency auto-sorting, 3 global window size presets & `Ctrl`+drag per-card resizing, Grid/Free dual layout modes, hardware-level mouse click-through, per-monitor DPI scaling, custom MP3/WAV trimming (≤10s), and 5-minute advance Toast alerts.
 
 > **Quick Onboarding**:
-> - **End Users (Ready to Use)**: Download `StickyNotes_AI_v3.3.zip` from GitHub **Releases**, unzip it, and double-click **`StickyNotes_AI.exe`** (includes bilingual Word manuals and `sample_tasks.txt`; no Python installation required).
+> - **End Users (Ready to Use)**: Download `StickyNotes_AI_v3.4.zip` from GitHub **Releases**, unzip it, and double-click **`StickyNotes_AI.exe`** (includes bilingual Word manuals and `sample_tasks.txt`; no Python installation required).
 > - **Developers (Source & Customization)**: Clone this repository, install dependencies, and run `python src/square_notes.py`. See the [Bilingual Developer Guide (DEV_GUIDE.md)](docs/DEV_GUIDE.md) for architecture and packaging details.
 
 ![Main Grid Interface](docs/images/01_main_grid_en.png)
@@ -25,15 +25,18 @@ A lightweight Windows desktop countdown sticky notes & AI natural-language sched
   - [5. Opacity Control & Mouse Click-Through (Enable & Restore)](#5-opacity-control--mouse-click-through-enable--restore)
   - [6. Custom MP3/WAV Trimming & 5-Min Advance Alert](#6-custom-mp3wav-trimming--5-min-advance-alert)
   - [7. System Tray, Preferences & Single-Instance Wakeup](#7-system-tray-preferences--single-instance-wakeup)
-  - [8. Keyboard Shortcuts & Mouse Controls](#8-keyboard-shortcuts--mouse-controls)
+  - [8. Window Size Presets & Ctrl+Drag Per-Card Resizing](#8-window-size-presets--ctrldrag-per-card-resizing)
+  - [9. Keyboard Shortcuts & Mouse Controls](#9-keyboard-shortcuts--mouse-controls)
 - [Project Structure & Local Data Backup](#project-structure--local-data-backup)
 - [Troubleshooting (FAQ)](#troubleshooting-faq)
+- [Changelog](#changelog)
+- [Roadmap](#roadmap)
 
 ---
 
 ## Key Highlights
 
-- **175×175 Square Status-Aware Cards**: Borderless always-on-top cards that automatically switch among **Warm Yellow (Normal), Orange (≤5m Warning), Crimson (Expired), Sky Blue (Fuzzy Schedule 🗓️), and Rose Red (Pending 📌)**.
+- **Status-Aware Square Cards**: Borderless always-on-top cards (default `175×175` px, with 3 global size presets and `Ctrl`+drag free resizing) that automatically switch among **Warm Yellow (Normal), Orange (≤5m Warning), Crimson (Expired), Sky Blue (Fuzzy Schedule 🗓️), and Rose Red (Pending 📌)**.
 - **3-Tier Urgency Auto-Sorting**: Refreshes every second and sorts by `(tier, remaining_seconds, note_id)` so the most urgent countdown always stays at `#1`.
 - **AI Memo Parsing & Context Rescheduling**: Built-in presets for 8 popular providers (Zhipu GLM-4-Flash free tier, DeepSeek, Kimi, Qwen, Doubao, OpenAI, Google Gemini, and local Ollama). Turns a single sentence into multiple categorized cards and understands relative updates like `"Postpone exam by 1 day"`.
 - **Dual Layout Modes + Smart Wrapping**: Switch between linked Grid Mode (drag any card header to move the whole matrix) and Free Mode (drag each card independently anywhere on screen), with `Max/Row` and work-area boundary wrapping.
@@ -46,11 +49,12 @@ A lightweight Windows desktop countdown sticky notes & AI natural-language sched
 ## Quick Start (End Users vs Developers)
 
 ### End Users: Download Release ZIP & Run EXE
-1. Download and extract `StickyNotes_AI_v3.3.zip` from GitHub Releases.
+1. Download and extract `StickyNotes_AI_v3.4.zip` from GitHub Releases.
 2. Inside the folder you will find:
    - `StickyNotes_AI.exe`: Portable standalone executable — double-click to launch;
    - `USER_MANUAL_CN.docx` / `USER_MANUAL_EN.docx`: Full illustrated Chinese & English Word manuals;
-   - `sample_tasks.txt`: Ready-to-copy natural-language test prompts.
+   - `sample_tasks.txt`: Ready-to-copy natural-language test prompts;
+   - `LICENSE`: MIT License.
 3. All notes and settings are stored cleanly in `notes_data/notes_state.json` beside the executable.
 
 ### Developers: Clone & Run from Source / Build
@@ -58,7 +62,7 @@ Requires **Windows 10 / 11** and **Python 3.10+**:
 
 ```bash
 # 1. Clone repository
-git clone https://github.com/your-username/StickyNotes_AI.git
+git clone https://github.com/AibaiIIU/StickyNotes_AI.git
 cd StickyNotes_AI
 
 # 2. Install dependencies
@@ -67,7 +71,7 @@ pip install -r requirements.txt
 # 3. Launch from source
 python src/square_notes.py
 
-# 4. Build release bundle into dist/StickyNotes_AI_v3.3/
+# 4. Build release bundle into dist/StickyNotes_AI_v3.4/
 python build.py
 ```
 
@@ -151,11 +155,22 @@ Powered by Win32 `EnumDisplayMonitors` and `SetProcessDpiAwareness(2)`, the `Scr
 - **Dual Toast Popups**: Triggers an amber `5 Min Left` Toast at `≤ 300s` and a crimson `Time's Up` Toast at `0s` in the primary monitor's bottom-right corner. Popups stack cleanly and auto-close (and stop audio) after 10 seconds or immediately upon click.
 
 ### 7. System Tray, Preferences & Single-Instance Wakeup
-- **System Tray**: Double-click the tray icon to toggle console visibility; right-click for quick actions (New Note, Show/Hide All Notes, Toggle Click-Through, Toggle Layout, Ringtone/API/Preferences, Exit).
-- **Preferences**: Switch `Auto / Simplified Chinese / English` dynamically and choose whether clicking `[×]` minimizes to tray (default) or exits completely.
+- **System Tray**: Double-click the tray icon to toggle console visibility; right-click for quick actions (New Note, Show/Hide All Notes, Toggle Click-Through, Toggle Layout, **Note Size Preset**, Ringtone/API/Preferences, Exit).
+- **Preferences**: Switch `Auto / Simplified Chinese / English` dynamically, select a **Note Size Preset** or reset all cards to the preset size, and choose whether clicking `[×]` minimizes to tray (default) or exits completely.
 - **Single-Instance Wakeup**: Binds TCP `127.0.0.1:58763`; launching a second instance sends `SHOW` to restore the existing console window.
 
-### 8. Keyboard Shortcuts & Mouse Controls
+### 8. Window Size Presets & Ctrl+Drag Per-Card Resizing
+- **3 Global Size Presets**: Switch anytime from **Preferences**, the system tray **📐 Note Size Preset** submenu, or any note's right-click menu:
+  - **Small / Compact**: `145×145` px
+  - **Medium / Standard (Default)**: `175×175` px
+  - **Large / Spacious**: `215×215` px
+  - Switching a preset immediately updates all cards without custom sizes; click **Reset All Notes to Preset Size** to unify every card.
+- **`Ctrl` + Drag Per-Card Resizing**:
+  - Hold **`Ctrl`** and hover over a sticky note's **right edge, bottom edge, or bottom-right corner** to display a resize cursor, then hold left mouse button and drag to resize width/height freely (enforces a minimum size of `130×125` px without conflicting with normal title-bar dragging).
+  - **Adaptive Inner Layout & Overlap-Free Grid**: Fonts, padding, and `wraplength` adapt automatically as a card resizes. In Linked Grid Mode, cards of mixed dimensions flow dynamically using each card's actual width/height and row/column max spans to prevent overlapping.
+  - **Persistence & Single-Card Reset**: The global preset and per-note `(width, height)` values persist in `notes_data/notes_state.json`; right-click any card and choose **Reset to Preset Size** to restore that individual card.
+
+### 9. Keyboard Shortcuts & Mouse Controls
 
 | Shortcut / Mouse Action | Function | Shortcut / Mouse Action | Function |
 | :--- | :--- | :--- | :--- |
@@ -164,7 +179,8 @@ Powered by Win32 `EnumDisplayMonitors` and `SetProcessDpiAwareness(2)`, the `Scr
 | `H` / `Ctrl+H` | Horizontal Layout | `Enter` | Submit New Note / AI Parse / Edit Time |
 | `V` / `Ctrl+V` | Vertical Layout | **Double-click Time** | Open Time / Pending Edit Dialog |
 | `T` / `Ctrl+T` | Toggle Always-on-Top | **Drag Card Header** | Move Matrix (Grid) or Single Card (Free) |
-| `M` / `Ctrl+M` | Toggle Grid / Free Mode | **Right-click Entry** | Cut / Copy / Paste / Select All Menu |
+| `M` / `Ctrl+M` | Toggle Grid / Free Mode | **`Ctrl` + Drag Edge/Corner** | Resize Individual Note Freely |
+| **Right-click Note** | Reset Size / Global Size Presets | **Right-click Entry** | Cut / Copy / Paste / Select All Menu |
 
 ---
 
@@ -183,13 +199,14 @@ StickyNotes_AI_Release/
 │   └── USER_MANUAL_EN.docx        # Illustrated English Word Manual
 ├── examples/
 │   └── sample_tasks.txt           # Ready-to-copy AI test prompts
-├── build.py                       # Bundles dist/StickyNotes_AI_v3.3/ release folder
+├── build.py                       # Bundles dist/StickyNotes_AI_v3.4/ release folder
 ├── requirements.txt
+├── LICENSE
 ├── README.md
 └── README_EN.md
 ```
 
-- **Backup & Migration**: All notes, timestamps, and settings reside in `notes_data/notes_state.json`. Back up or copy the entire `notes_data/` folder to migrate seamlessly across PCs.
+- **Backup & Migration**: All notes, timestamps, size presets, per-note `(width, height)`, and settings reside in `notes_data/notes_state.json`. Back up or copy the entire `notes_data/` folder to migrate seamlessly across PCs.
 
 ---
 
@@ -203,6 +220,22 @@ StickyNotes_AI_Release/
    Verify your API key and model name (Volcengine Doubao requires your `ep-xxxx` endpoint ID). Domestic Chinese endpoints try direct connection before falling back to system proxy.
 4. **Audio file failed to decode?**
    Windows MCI supports standard MP3 and PCM WAV files; encrypted formats (`.ncm`/`.qmc`) must be converted to standard MP3/WAV first.
+
+---
+
+## Changelog
+
+### v3.4
+- Added 3 fixed global window size presets (Small `145×145`, Medium `175×175`, Large `215×215`) accessible from Preferences, System Tray, and note right-click menus, plus one-click reset for all notes;
+- Added `Ctrl` + drag resizing on individual note edges and bottom-right corner with minimum size guards and single-card reset;
+- Added responsive inner text wrapping (`wraplength`) and dynamic mixed-size flow layout in Linked Grid Mode with JSON persistence.
+
+### v3.3
+- Initial open-source release featuring square countdown sticky notes, multi-model AI natural-language task parsing, Grid/Free dual layout modes, multi-monitor support, opacity & mouse click-through protection, custom MP3/WAV trimming, and 5-minute advance Toast alerts.
+
+## Roadmap
+
+To be determined (under active planning; feature requests are welcome via GitHub Issues).
 
 ---
 
